@@ -1,0 +1,10 @@
+# Node.js
+node_modules/
+.env
+
+# Go
+bin/
+worker-service/sentinel-worker (if you build the binary)
+
+# Docker
+.DS_Store
