@@ -22,7 +22,7 @@ type MonitorTask struct {
 }
 
 func main() {
-	dbConnStr := "postgresql://AfshanQ:Afshan525@localhost:5432/sre_db?sslmode=disable"
+	dbConnStr := "postgres://AfshanQ:Afshan525@127.0.0.1:5432/sre_db?sslmode=disable"
 	db, err := sql.Open("postgres", dbConnStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to Postgres: %v", err)
@@ -46,9 +46,19 @@ func main() {
 	}
 	defer ch.Close()
 
-	q, err := ch.QueueDeclare("monitor_tasks", true, false, false, false, nil)
+	_, err = ch.QueueDeclare("monitor_tasks_dead", true, false, false, false, nil)
 	if err != nil {
-		log.Fatalf("Failed to declare a queue: %v", err)
+		log.Fatalf("Failed to declare DLQ: %v", err)
+	}
+
+	args := amqp.Table{
+		"x-dead-letter-exchange":    "",
+		"x-dead-letter-routing-key": "monitor_tasks_dead",
+	}
+
+	q, err := ch.QueueDeclare("monitor_tasks", true, false, false, false, args)
+	if err != nil {
+		log.Fatalf("Failed to declare main queue: %v", err)
 	}
 
 	err = ch.Qos(1, 0, false)
@@ -81,7 +91,7 @@ func main() {
 			var task MonitorTask
 			err := json.Unmarshal(d.Body, &task)
 			if err != nil {
-				log.Printf("Error decoding JSON: %s", err)
+				log.Printf("Poison Message: %s", err)
 				d.Nack(false, false)
 				continue
 			}
